@@ -1,0 +1,115 @@
+spring:
+  application:
+    name: assetflow-portfolio-service
+  data:
+    mongodb:
+      uri: mongodb://sothrose:sothrose@localhost:27017/portfolios
+      database: portfolios
+server:
+  port: 8082
+
+user-service:
+  base-url: "http://localhost:8081"
+  user-by-id:
+    path: "/v1/assetflow/users/{userId}"
+
+kafka:
+  bootstrap-servers: localhost:9092
+  topic:
+    portfolio-updates: portfolio-updates
+    trade-created: trade-created
+  retries: 5
+  retries-backoff-in-ms: 1000
+  consumer:
+    group-id: portfolio-service-group
+    dlq-group-id: portfolio-service-dlq-group
+    max-poll-interval: 30000
+    trusted-packages: "com.sothrose.assetflow_portfolio_service.model"
+    concurrency: 3
+    batch-listener: false
+  listener:
+    ack-mode: manual
+    retry:
+      max-attempts: 3
+      backoff:
+        delay: 2000
+    dead-letter-topic: trade-createdó-dlq
+
+resilience4j.circuitbreaker:
+  instances:
+    userServiceUserData:
+      registerHealthIndicator: true
+      ringBufferSizeInClosedState: 5
+      ringBufferSizeInHalfOpenState: 3
+      waitDurationInOpenState: 10s
+      failureRateThreshold: 50
+      recordExceptions:
+        - org.springframework.web.reactive.function.client.WebClientRequestException
+        - org.springframework.web.client.HttpServerErrorException
+        - java.io.IOException
+        - java.util.concurrent.TimeoutException
+        - org.springframework.web.client.ResourceAccessException
+        - java.net.ConnectException
+        - java.lang.RuntimeException
+    mongoPortfolio:
+      registerHealthIndicator: true
+      ringBufferSizeInClosedState: 6
+      ringBufferSizeInHalfOpenState: 4
+      waitDurationInOpenState: 20s
+      failureRateThreshold: 60
+
+resilience4j.bulkhead:
+  instances:
+    bulkheadUserServiceUserData:
+      maxWaitDuration: 10ms
+      maxConcurrentCalls: 20
+    mongoPortfolio:
+      maxWaitDuration: 10ms
+      maxConcurrentCalls: 20
+
+resilience4j.thread-pool-bulkhead:
+  instances:
+    bulkheadUserServiceUserData:
+      maxThreadPoolSize: 1
+      coreThreadPoolSize: 1
+      queueCapacity: 1
+      keepAliveDuration: 20ms
+    mongoPortfolio:
+      maxThreadPoolSize: 1
+      coreThreadPoolSize: 1
+      queueCapacity: 1
+      keepAliveDuration: 20ms
+
+resilience4j.retry:
+  instances:
+    retryUserServiceUserData:
+      maxRetryAttempts: 5
+      waitDuration: 10000
+      retry-exceptions:
+        - org.springframework.web.reactive.function.client.WebClientRequestException
+        - java.util.concurrent.TimeoutException
+        - java.net.ConnectException
+        - java.lang.RuntimeException
+    mongoPortfolio:
+      maxRetryAttempts: 3
+      waitDuration: 2000ms
+      retry-exceptions:
+        - com.mongodb.MongoTimeoutException
+        - com.mongodb.MongoSocketReadException
+        - com.mongodb.MongoSocketWriteException
+        - com.mongodb.MongoException
+        - java.util.concurrent.TimeoutException
+        - java.net.ConnectException
+
+resilience4j.ratelimiter:
+  instances:
+    userServiceUserData:
+      timeoutDuration: 1000ms
+      limitRefreshPeriod: 5000
+      limitForPeriod: 5
+
+resilience4j.timelimiter:
+  instances:
+    userServiceUserData:
+      timeoutDuration: 2s
+      cancelRunningFuture: true

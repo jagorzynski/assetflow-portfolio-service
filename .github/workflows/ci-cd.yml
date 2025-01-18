@@ -1,0 +1,76 @@
+name: Build, Test, Scan, and Push to GHCR
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build-test-scan-push:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+
+      - name: Grant execute permissions to Gradle wrapper
+        run: chmod +x ./gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build
+
+      - name: Run Tests
+        run: ./gradlew test
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: build/test-results/test/
+
+      - name: Build Docker Image
+        if: success()
+        run: ./gradlew bootBuildImage --imageName=ghcr.io/${{ github.repository_owner }}/assetflow-portfolio-service:${{ github.sha }}
+
+      - name: Login to GitHub Container Registry
+        if: success()
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag Docker Image as Latest
+        if: success()
+        run: |
+          docker tag ghcr.io/${{ github.repository_owner }}/assetflow-portfolio-service:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/assetflow-portfolio-service:latest
+
+      - name: Scan Docker Image with Grype
+        if: success()
+        uses: anchore/scan-action@v3
+        with:
+          image: "ghcr.io/${{ github.repository_owner }}/assetflow-portfolio-service:${{ github.sha }}"
+          fail-build: false
+          severity-cutoff: high
+
+      - name: Upload Grype Scan Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: grype-results-image
+          path: grype-report.json
+
+      - name: Push to GitHub Container Registry
+        if: success()
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/assetflow-portfolio-service:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository_owner }}/assetflow-portfolio-service:latest
