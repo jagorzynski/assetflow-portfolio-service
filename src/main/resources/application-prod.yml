@@ -2,8 +2,7 @@ spring:
   cloud:
     config:
       enabled: true
-      #      uri: ${SPRING_CLOUD_CONFIG_URI:http://assetflow-config-server:8888}
-      uri: ${SPRING_CLOUD_CONFIG_URI:http://localhost:8888}
+      uri: ${SPRING_CLOUD_CONFIG_URI:http://assetflow-config-server:8888}
       request-connect-timeout: 5000
       request-read-timeout: 5000
       fail-fast: true
