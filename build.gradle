@@ -24,6 +24,7 @@ repositories {
 }
 
 ext {
+    set('springCloudVersion', "2024.0.0")
     resilience4jVersion = '2.3.0'
 }
 
@@ -36,11 +37,15 @@ dependencies {
 
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
+    implementation 'org.springframework.cloud:spring-cloud-starter-config'
+    implementation 'org.springframework.retry:spring-retry'
+
     implementation "io.github.resilience4j:resilience4j-spring-boot3:${resilience4jVersion}"
     implementation "io.github.resilience4j:resilience4j-circuitbreaker:${resilience4jVersion}"
     implementation "io.github.resilience4j:resilience4j-timelimiter:${resilience4jVersion}"
     implementation "io.github.resilience4j:resilience4j-reactor:${resilience4jVersion}"
     implementation "io.github.resilience4j:resilience4j-retry:${resilience4jVersion}"
+    implementation "io.github.resilience4j:resilience4j-bulkhead:${resilience4jVersion}"
 
     implementation 'org.springframework.boot:spring-boot-starter-aop'
 
@@ -53,6 +58,13 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+        mavenBom "io.github.resilience4j:resilience4j-bom:${resilience4jVersion}"
+    }
 }
 
 tasks.named('test') {
