@@ -1,7 +1,16 @@
 spring:
   application:
     name: assetflow-portfolio-service
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:prod}
 server:
   port: 8082
+  shutdown: graceful
+  tomcat:
+    connection-timeout: 2s
+    keep-alive-timeout: 15s
+    threads:
+      max: 50
+      min-spare: 5
