@@ -11,6 +11,7 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryRegistry;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -96,13 +97,13 @@ class RedisServiceTest {
     // given
     var key = "testKey";
     var value = "testValue";
-    doNothing().when(valueOperations).set(key, value);
+    doNothing().when(valueOperations).set(key, value, 2, TimeUnit.MINUTES);
 
     // when
     redisService.setValue(key, value);
 
     // then
-    verify(valueOperations, times(1)).set(key, value);
+    verify(valueOperations, times(1)).set(key, value, 2, TimeUnit.MINUTES);
   }
 
   @Test
@@ -114,10 +115,10 @@ class RedisServiceTest {
     // when
     doThrow(new RedisConnectionFailureException("Redis is down"))
         .when(valueOperations)
-        .set(key, value);
+        .set(key, value, 2, TimeUnit.MINUTES);
 
     // then
     assertDoesNotThrow(() -> redisService.setValue(key, value));
-    verify(valueOperations, times(1)).set(key, value);
+    verify(valueOperations, times(1)).set(key, value, 2, TimeUnit.MINUTES);
   }
 }
