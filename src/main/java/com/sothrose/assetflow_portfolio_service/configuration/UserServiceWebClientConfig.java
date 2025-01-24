@@ -27,7 +27,7 @@ import reactor.core.publisher.Mono;
 @Configuration
 public class UserServiceWebClientConfig {
 
-  @Value("${user-service.base-url:http://localhost:8081}")
+  @Value("${user-service.base-url:http://assetflow-user-service:8081}")
   private String userServiceBaseUrl;
 
   @Bean
