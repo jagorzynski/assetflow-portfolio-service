@@ -8,6 +8,10 @@ spring:
       uri: mongodb://sothrose:sothrose@localhost:27017/portfolios
       database: portfolios
 
+  redis:
+    host: assetflow-portfolio-redis
+    port: 6379
+
 user-service:
   base-url: "http://localhost:8081"
   user-by-id:
@@ -57,6 +61,19 @@ resilience4j.circuitbreaker:
       ringBufferSizeInHalfOpenState: 4
       waitDurationInOpenState: 20s
       failureRateThreshold: 60
+    redisService:
+      registerHealthIndicator: true
+      ringBufferSizeInClosedState: 5
+      ringBufferSizeInHalfOpenState: 3
+      waitDurationInOpenState: 10s
+      failureRateThreshold: 50
+      recordExceptions:
+        - org.springframework.data.redis.RedisConnectionFailureException
+        - io.lettuce.core.RedisCommandTimeoutException
+        - io.lettuce.core.RedisConnectionException
+        - java.util.concurrent.TimeoutException
+        - java.net.ConnectException
+        - java.lang.RuntimeException
 
 resilience4j.bulkhead:
   instances:
@@ -64,6 +81,9 @@ resilience4j.bulkhead:
       maxWaitDuration: 10ms
       maxConcurrentCalls: 20
     mongoPortfolio:
+      maxWaitDuration: 10ms
+      maxConcurrentCalls: 20
+    bulkheadRedisService:
       maxWaitDuration: 10ms
       maxConcurrentCalls: 20
 
@@ -75,6 +95,11 @@ resilience4j.thread-pool-bulkhead:
       queueCapacity: 1
       keepAliveDuration: 20ms
     mongoPortfolio:
+      maxThreadPoolSize: 1
+      coreThreadPoolSize: 1
+      queueCapacity: 1
+      keepAliveDuration: 20ms
+    bulkheadRedisService:
       maxThreadPoolSize: 1
       coreThreadPoolSize: 1
       queueCapacity: 1
@@ -100,6 +125,16 @@ resilience4j.retry:
         - com.mongodb.MongoException
         - java.util.concurrent.TimeoutException
         - java.net.ConnectException
+    retryRedisService:
+      maxRetryAttempts: 3
+      waitDuration: 2000ms
+      retry-exceptions:
+        - org.springframework.data.redis.RedisConnectionFailureException
+        - io.lettuce.core.RedisCommandTimeoutException
+        - io.lettuce.core.RedisConnectionException
+        - java.util.concurrent.TimeoutException
+        - java.net.ConnectException
+        - java.lang.RuntimeException
 
 resilience4j.ratelimiter:
   instances:

@@ -7,7 +7,11 @@ import static java.lang.String.join;
 import static java.math.BigDecimal.ZERO;
 import static java.time.LocalDateTime.now;
 import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
+import static java.util.Optional.empty;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sothrose.assetflow_portfolio_service.client.UserServiceClient;
 import com.sothrose.assetflow_portfolio_service.exception.*;
 import com.sothrose.assetflow_portfolio_service.model.*;
@@ -19,6 +23,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,6 +58,8 @@ public class PortfolioService {
   private final TradeDtoValidator tradeDtoValidator;
   private final PortfolioDtoValidator portfolioDtoValidator;
   private final KafkaTemplate<String, PortfolioUpdatedEvent> kafkaTemplate;
+  private final RedisService redisService;
+  private final ObjectMapper objectMapper;
 
   @KafkaListener(topics = "${kafka.topic.trade-created}", groupId = "portfolio-service-group")
   public void handleTradeCreated(TradeCreatedEvent event, Acknowledgment ack) {
@@ -72,7 +79,7 @@ public class PortfolioService {
     if (!portfolioDtoValidationErrors.isEmpty()) {
       var validationErrors = join(DELIMITER, portfolioDtoValidationErrors);
       log.error("PortfolioDto contains validation errors: [{}]", validationErrors);
-      throw new PortfolioDtoValidationError(
+      throw new PortfolioDtoValidationException(
           format("PortfolioDto contains validation errors: [%s]", validationErrors));
     }
 
@@ -252,7 +259,7 @@ public class PortfolioService {
     if (!tradeDtoValidationErrors.isEmpty()) {
       var validationErrors = join(DELIMITER, tradeDtoValidationErrors);
       log.error("TradeDto contains validation errors: [{}]", validationErrors);
-      throw new TradeDtoValidationError(
+      throw new TradeDtoValidationException(
           format("TradeDto contains validation errors: [%s]", validationErrors));
     }
 
@@ -345,7 +352,7 @@ public class PortfolioService {
   }
 
   private boolean isActiveUser(Long userId) {
-    var userDto = userServiceClient.fetchUserData(userId);
+    var userDto = fetchUserData(userId);
 
     if (isNull(userDto) || isNull(userDto.getIsActive())) {
       log.info(
@@ -360,6 +367,24 @@ public class PortfolioService {
     return userDto.getIsActive();
   }
 
+  private UserDto fetchUserData(Long userId) {
+    var cachedData = redisService.getValue(String.valueOf(userId));
+    boolean isCachedUserPresent = nonNull(cachedData) && !cachedData.isEmpty();
+    if (isCachedUserPresent) {
+      log.info("User with id: [{}], present in redis cache", userId);
+      var deserializedUserDtoOpt = deserializeUserDto(cachedData);
+      if (deserializedUserDtoOpt.isPresent()) {
+        return deserializedUserDtoOpt.get();
+      }
+    }
+
+    log.info("User with id: [{}], not present in redis cache", userId);
+    var userDto = userServiceClient.fetchUserData(userId);
+    serializeUserDto(userDto)
+        .ifPresent(user -> redisService.setValue(String.valueOf(userId), user));
+    return userDto;
+  }
+
   private void userNotActiveLog(Long userId) {
     log.error(USER_NOT_ACTIVE_LOG_MSG, userId);
   }
@@ -370,5 +395,23 @@ public class PortfolioService {
 
   private void notEnoughAssetQuantityLog(String presentAssetName, Long userId) {
     log.error(NOT_ENOUGH_QUANTITY_LOG_MSG, presentAssetName, userId);
+  }
+
+  private Optional<String> serializeUserDto(UserDto userDto) {
+    try {
+      return Optional.of(objectMapper.writeValueAsString(userDto));
+    } catch (JsonProcessingException e) {
+      log.error("Error occurred when saving user to redis cache: [{}]", e.getMessage(), e);
+      return empty();
+    }
+  }
+
+  private Optional<UserDto> deserializeUserDto(String json) {
+    try {
+      return Optional.of(objectMapper.readValue(json, UserDto.class));
+    } catch (JsonProcessingException e) {
+      log.error("Error occurred when fetching user from redis cache: [{}]", e.getMessage(), e);
+      return empty();
+    }
   }
 }
