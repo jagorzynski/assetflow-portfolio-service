@@ -9,7 +9,7 @@ spring:
       database: portfolios
 
   redis:
-    host: assetflow-portfolio-redis
+    host: localhost
     port: 6379
 
 user-service:
@@ -37,7 +37,7 @@ kafka:
       max-attempts: 3
       backoff:
         delay: 2000
-    dead-letter-topic: trade-createdó-dlq
+    dead-letter-topic: trade-created-dlq
 
 resilience4j.circuitbreaker:
   instances:
